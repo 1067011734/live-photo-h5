@@ -52,6 +52,55 @@ import '@local/live-photo-react/style.css';
 
 `@local/live-photo-react` 是本地包名，本项目未发布到 npm。React 18+ 为 peer dependency，不打进组件包。
 
+## 宽高设置
+
+### 模式一：直接设置组件尺寸
+
+通过 `style` 指定组件的宽高，数字的单位为 px：
+
+```tsx
+<LivePhoto
+  photoSrc="/photo.jpg"
+  videoSrc="/motion.mp4"
+  alt="实况照片"
+  style={{ width: 320, height: 240 }}
+/>
+```
+
+需要响应式尺寸时，只设置宽度，通过 `aspectRatio` 自动计算高度：
+
+```tsx
+<LivePhoto
+  photoSrc="/photo.jpg"
+  videoSrc="/motion.mp4"
+  alt="实况照片"
+  style={{ width: '100%' }}
+  aspectRatio="16 / 9"
+/>
+```
+
+组件默认宽度为父容器的 `100%`，默认比例为 `4 / 3`。同时指定明确的宽度与高度时，尺寸以 `style` 为准，`aspectRatio` 不再决定宽高。
+
+### 模式二：占满固定宽高的父容器
+
+父容器设置固定宽高，组件的宽高均设置为 `100%`：
+
+```tsx
+<div style={{ width: 320, height: 400 }}>
+  <LivePhoto
+    photoSrc="/photo.jpg"
+    videoSrc="/motion.mp4"
+    alt="实况照片"
+    style={{ width: '100%', height: '100%' }}
+    objectFit="cover"
+  />
+</div>
+```
+
+此时组件完全跟随父容器尺寸，不需要设置 `aspectRatio`。父容器需要有明确的高度，仅设置父容器宽度或 `height: auto` 无法用 `height: '100%'` 确定组件高度。
+
+两种模式都可通过 `objectFit` 控制图片和视频的显示方式：`cover`（默认）等比例裁切并填满，`contain` 等比例完整显示，可能留白。
+
 ## 本地文件导入
 
 ```tsx
