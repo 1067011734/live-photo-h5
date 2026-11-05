@@ -1,6 +1,6 @@
 # React Live Photo H5
 
-跨平台实况图片组件：默认显示静态照片，按住播放短视频，松开回到照片。提供 React + TypeScript 源码、可构建的组件包、中文演示页和测试。
+跨平台实况图片组件：传入照片和视频 URL，默认显示静态照片，按住播放短视频，松开回到照片。提供 React + TypeScript 源码、可构建的组件包、中文演示页和测试。
 
 ## 运行
 
@@ -12,7 +12,7 @@ npm run dev
 打开终端输出的地址，默认 http://localhost:5173 。手机与电脑处于同一局域网时，可打开终端输出的 Network 地址体验。项目使用兼容本机 Node 18 的 Vite 6；新环境建议使用受支持的 Node LTS。
 
 ```bash
-npm test          # 组件与格式解析测试
+npm test          # 组件测试
 npm run build    # 生成演示站 dist/
 npm run build:lib # 生成 ESM 组件、CSS、类型到 lib/
 npm run test:e2e  # 本机 Chrome 的真实视频播放与移动触控模拟
@@ -22,7 +22,7 @@ npm run test:e2e  # 本机 Chrome 的真实视频播放与移动触控模拟
 
 ## 在项目中使用
 
-可以直接复制 `src/lib/`；组件使用原生 `<img>` / `<video>`，HEIC 导入按需加载 `heic-to` 解码器。
+组件使用原生 `<img>` / `<video>`，由业务方提供可播放的照片和视频 URL。
 
 ```tsx
 import { LivePhoto } from './lib/LivePhoto';
@@ -46,11 +46,25 @@ export function Example() {
 复用构建包时，先执行 `npm run build:lib` 和 `npm pack`，在另一个项目中安装生成的 `.tgz`，然后使用：
 
 ```tsx
-import { LivePhoto, resolveLivePhoto } from '@local/live-photo-react';
+import { LivePhoto } from '@local/live-photo-react';
 import '@local/live-photo-react/style.css';
 ```
 
 `@local/live-photo-react` 是本地包名，本项目未发布到 npm。React 18+ 为 peer dependency，不打进组件包。
+
+## 迁入现有 React 项目与依赖
+
+已有 React 18+ 项目无需安装额外运行依赖，`dependencies` 可以为空。组件由宿主项目提供 `react` / `react-dom`，本包通过 `peerDependencies` 声明版本要求。
+
+迁移源码时复制 `src/lib/LivePhoto.tsx` 和 `src/lib/live-photo.css`，从组件文件直接引入即可；需要统一入口时再复制 `src/lib/index.ts`。测试文件无需迁入。
+
+```tsx
+import { LivePhoto } from './components/LivePhoto';
+```
+
+`LivePhoto.tsx` 已引入同目录 CSS，请保持两个文件的相对位置。如果使用构建后的 npm 包，则按上面的方式显式引入 `@local/live-photo-react/style.css`。
+
+`lucide-react` 仅用于演示页图标；Vite、TypeScript、Vitest、Testing Library、Playwright 仅用于开发和测试，保留在 `devDependencies` 中，迁移播放组件时无需安装。TypeScript 项目若缺少 React 类型声明，可安装 `@types/react` / `@types/react-dom` 作为开发依赖。
 
 ## 宽高设置
 
@@ -101,51 +115,16 @@ import '@local/live-photo-react/style.css';
 
 两种模式都可通过 `objectFit` 控制图片和视频的显示方式：`cover`（默认）等比例裁切并填满，`contain` 等比例完整显示，可能留白。
 
-## 本地文件导入
+## 素材接入
 
-```tsx
-import { useEffect, useState } from 'react';
-import { LivePhoto, resolveLivePhoto, type ResolvedLivePhoto } from './lib';
-
-export function LocalExample() {
-  const [media, setMedia] = useState<ResolvedLivePhoto | null>(null);
-  useEffect(() => () => media?.dispose(), [media]);
-
-  return <>
-    <input type="file" multiple accept="image/*,video/*,.heic,.heif,.mov"
-      onChange={async (event) => {
-        const files = Array.from(event.currentTarget.files ?? []);
-        if (!files.length) return;
-        try {
-          setMedia(await resolveLivePhoto(files));
-        } catch (error) {
-          console.error(error);
-        }
-      }} />
-    {media && <LivePhoto photoSrc={media.photoSrc} videoSrc={media.videoSrc} alt="我的实况照片" />}
-  </>;
-}
-```
-
-上例展示基本接入。可连续导入、取消或卸载的生产流程请参考 `src/App.tsx`，它用 `AbortController` 取消旧任务，并释放替换前的 object URL。导入工具只在本地读取文件，不上传资源。
-
-`resolveLivePhoto(fileOrFiles, { signal?, maxFileSize? })` 返回 `photoSrc`、可选 `videoSrc`、`format`、可选 `photoTime`（秒）及 `dispose()`。`photoTime` 当前仅来自 JPEG XMP，作为额外元数据返回，不参与播放起点；播放始终从视频开头开始。默认每文件上限 100 MiB，最多 20 个输入；唯一同名图片和视频优先配对，多组同名素材会提示歧义。
-
-调用方在资源不用时调用 `dispose()`。它可重复调用，释放本次生成的全部 URL。异步取消与失败路径会自行清理。`LivePhotoImportError.code` 区分文件过大、缺图、配对歧义、格式损坏及 HEIC 解码失败等错误。
-
-## 支持的素材
-
-| 素材 | 支持方式 |
+| 资源 | 接入方式 |
 | --- | --- |
-| iOS Live Photo | 导出的 JPG / HEIC 照片 + 对应 MOV / MP4，优先同名配对 |
-| Google 旧式 Motion Photo | JPEG XMP `MicroVideoOffset`，分离内嵌 MP4 |
-| Google 新式 Motion Photo | XMP `Container:Directory` / `Item:Length`，处理 padding 和额外资源 |
-| Samsung JPEG 动态照片 | XMP 或 JPEG 后的有效 MP4，校验并裁掉已知 SEF 尾部 |
-| Android 标准 HEIC / AVIF 动态照片 | 顶层 `mpvd` 容器；HEIC 封面转 JPEG，AVIF 封面由浏览器显示 |
-| 普通图片 | 正常显示静态照片，无播放按钮 |
-| 已处理的线上素材 | 直接传照片和短视频 URL，无需导入器 |
+| 静态封面 | `photoSrc`，推荐 JPEG / PNG / WebP URL |
+| 实况短视频 | `videoSrc`，推荐 H.264 编码的 MP4 URL |
+| 视频候选源 | `sources`，由浏览器选择支持的类型 |
+| 普通图片 | 仅传 `photoSrc`，正常显示静态照片 |
 
-解析器验证 JPEG 标记、XMP 数值范围及 MP4 box 边界，避免把图片中的随机 `ftyp` 字节误当视频；保留 Ultra HDR / MPF 附加图片数据。私有厂商容器不保证全部可识别，建议服务端统一输出 JPG + H.264 MP4。
+iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先分离成照片和视频资源，再传给组件。组件只负责 URL 播放，不包含本地文件选择、原片解析、图片格式转换或视频转码。
 
 ## 播放 API
 
@@ -172,18 +151,16 @@ export function LocalExample() {
 ## 浏览器与原片边界
 
 - 播放层设置 `muted`、`playsInline` 及兼容 WebView 的内联属性，捕获播放 Promise 失败并保留重试入口。
-- iOS 相册通过普通网页 `<input>` 常常只返回静态图，H5 无法据此还原被系统丢掉的视频。请导出「未修改的原片」照片和视频后同时导入；App 内可由原生桥接提供两份资源。
+- 请预先将原片处理为浏览器支持的图片与视频，再传入 URL。HEIC 封面若需要跨端显示，请由业务方转换为 JPEG / WebP。
 - MOV / MP4 是容器，是否播放取决于真实编码、系统及硬件。HEVC 不保证在所有 Android / iOS 浏览器上解码；本组件不在浏览器内转码视频。跨端上线优先提供 JPEG + **H.264 / yuv420p MP4**，有声素材使用 AAC。
 - `sources` 是浏览器原生候选源选择，不保证解码到中途失败后继续切换。需要确定性跨端兼容时直接提供已经转好的 H.264 源；错误通过 `onError` 返回。
 - 远程素材应使用 HTTPS，支持视频 Range 请求、正确 Content-Type；配置 `crossOrigin` 时服务端需允许相应 CORS。部分 App WebView、低电量模式或浏览器策略仍可能拒绝播放，应保留点击重试。
-- 已在本机 Chrome 验证真实 H.264 视频播放、配对与内嵌素材导入，以及手机尺寸触控模拟；未进行 iPhone / Android 真机验证。HEIC 解码测试使用 mock，项目未附真实 HEIC 样本。
+- 浏览器测试覆盖真实 H.264 视频播放和手机尺寸触控模拟；未进行 iPhone / Android 真机验证。
 
 ## 方案依据与依赖
 
 - [Apple LivePhotosKit JS](https://developer.apple.com/documentation/LivePhotosKitJS)：参考静态图 + 视频资源模型和实况交互。项目未依赖 Apple CDN 播放器，避免将 Android 支持绑定在其旧 SDK 上。
-- [Android Motion Photo 格式](https://developer.android.com/media/platform/motion-photo-format)及 [Google Media3 解析器](https://github.com/androidx/media/blob/release/libraries/extractor/src/main/java/androidx/media3/extractor/jpeg/XmpMotionPhotoDescriptionParser.java)：参考 XMP 格式与视频定位规则。
 - [Chrome 自动播放策略](https://developer.chrome.com/blog/autoplay)及 [WebKit 内联视频策略](https://webkit.org/blog/6784/new-video-policies-for-ios/)：参考用户手势、静音及 `playsinline` 行为。
-- [heic-to](https://github.com/hoppergee/heic-to)：HEIC → JPEG，独立懒加载 chunk，约 3.2 MB（gzip 约 790 KB），仅导入 HEIC 时请求。
 - React + TypeScript；演示页图标使用 Lucide，构建与测试使用 Vite、Vitest、Testing Library 和 Playwright。
 
 `public/demo/coast.mp4` 来自 [Vide 的 ocean 示例](https://github.com/vodkabears/Vide/tree/master/examples/video)，`coast.jpg` 是它的首帧。原仓库为 MIT 许可，许可副本见同目录。此处仅使用示例媒体，未引入 Vide 播放器。可选 macOS 抽帧脚本见 `scripts/prepare-demo.swift`。

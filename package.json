@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Cross-platform React Live Photo player and Motion Photo importer",
+  "description": "Cross-platform React Live Photo player for image and video URLs",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
@@ -12,9 +12,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
-  },
-  "dependencies": {
-    "heic-to": "^1.0.0"
   },
   "devDependencies": {
     "@playwright/test": "1.51.1",

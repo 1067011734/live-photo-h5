@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Aperture, ArrowDown, ArrowRight, ArrowUpRight, Check, Code2, FileImage,
-  LoaderCircle, Monitor, Repeat2, RotateCcw, Smartphone, Upload, Volume2, VolumeX,
+  Aperture, ArrowDown, ArrowRight, ArrowUpRight, Check, Code2, FileImage, Film,
+  Monitor, Repeat2, RotateCcw, Smartphone, Volume2, VolumeX,
 } from 'lucide-react';
 import { LivePhoto, type LivePhotoHandle, type LivePhotoState } from './lib/LivePhoto';
-import { resolveLivePhoto, type ResolvedLivePhoto } from './lib/media';
 import './lib/live-photo.css';
 import './demo.css';
 
@@ -20,79 +19,22 @@ function timeLabel(seconds: number) {
 
 export default function App() {
   const player = useRef<LivePhotoHandle>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const importController = useRef<AbortController | null>(null);
-  const [imported, setImported] = useState<ResolvedLivePhoto | null>(null);
-  const [fileName, setFileName] = useState('海岸来信');
   const [muted, setMuted] = useState(true);
   const [loop, setLoop] = useState(false);
   const [activation, setActivation] = useState<'press' | 'toggle'>('press');
   const [state, setState] = useState<LivePhotoState>('idle');
   const [progress, setProgress] = useState({ currentTime: 0, duration: 0 });
-  const [busy, setBusy] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [importError, setImportError] = useState('');
   const [playbackError, setPlaybackError] = useState('');
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const assets = imported ?? sample;
-  const hasVideo = Boolean(assets.videoSrc);
-  const formatLabel = !imported ? '示例 · JPG + MP4' : imported.format === 'pair'
-    ? '照片 + 视频' : imported.format === 'motion-photo' ? 'Android Motion Photo' : '静态照片';
-
-  useEffect(() => () => imported?.dispose(), [imported]);
   useEffect(() => () => {
-    importController.current?.abort();
     if (copyTimer.current) clearTimeout(copyTimer.current);
   }, []);
 
-  async function importFiles(files: readonly File[]) {
-    if (!files.length) return;
-    importController.current?.abort();
-    const controller = new AbortController();
-    importController.current = controller;
-    setBusy(true);
-    setImportError('');
-    try {
-      const result = await resolveLivePhoto(files, { signal: controller.signal });
-      if (controller.signal.aborted) {
-        result.dispose();
-        return;
-      }
-      player.current?.stop();
-      setImported(result);
-      setFileName(files.find((file) => file.type.startsWith('image/'))?.name ?? files[0].name);
-      setPlaybackError('');
-      setProgress({ currentTime: 0, duration: 0 });
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        setImportError(error instanceof Error ? error.message : '素材读取失败，请重新选择文件。');
-      }
-    } finally {
-      if (importController.current === controller) {
-        setBusy(false);
-        importController.current = null;
-      }
-      if (fileInput.current) fileInput.current.value = '';
-    }
-  }
-
-  function resetSample() {
-    importController.current?.abort();
-    importController.current = null;
+  function resetPlayback() {
     player.current?.stop();
-    setBusy(false);
-    setImported(null);
-    setFileName('海岸来信');
-    setImportError('');
     setPlaybackError('');
-    setProgress({ currentTime: 0, duration: 0 });
-  }
-
-  function onDrop(event: DragEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    setDragging(false);
-    void importFiles(Array.from(event.dataTransfer.files));
+    setProgress((previous) => ({ ...previous, currentTime: 0 }));
   }
 
   const code = `import { LivePhoto } from '@local/live-photo-react';
@@ -134,9 +76,9 @@ import '@local/live-photo-react/style.css';
             <p className="eyebrow"><span className="eyebrow-line" /> A LITTLE MORE THAN A PHOTO</p>
             <h1 id="hero-title">让照片，<span>鲜活起来。</span><span className="title-star" aria-hidden="true">✳</span></h1>
             <p className="hero-description">不止定格一瞬，也留住那一刻的风。<br className="mobile-break" />一个轻盈的 React 实况图片组件，让回忆在指尖流动。</p>
-            <div className="platforms" aria-label="支持的平台和资源类型">
-              <span><Smartphone size={14} /> iOS Live Photos</span>
-              <span><Smartphone size={14} /> Android Motion Photos</span>
+            <div className="platforms" aria-label="支持的播放平台">
+              <span><Smartphone size={14} /> iOS 内联播放</span>
+              <span><Smartphone size={14} /> Android 内联播放</span>
               <span><Monitor size={14} /> H5 原生播放</span>
             </div>
           </div>
@@ -149,11 +91,10 @@ import '@local/live-photo-react/style.css';
             <div className="photo-card">
               <div className="photo-surface">
                 <LivePhoto
-                  key={`${assets.photoSrc}:${assets.videoSrc ?? ''}`}
                   ref={player}
-                  photoSrc={assets.photoSrc}
-                  videoSrc={assets.videoSrc}
-                  alt={imported ? fileName : '海岸边，一段会动的回忆'}
+                  photoSrc={sample.photoSrc}
+                  videoSrc={sample.videoSrc}
+                  alt="海岸边，一段会动的回忆"
                   activation={activation}
                   muted={muted}
                   loop={loop}
@@ -168,22 +109,21 @@ import '@local/live-photo-react/style.css';
                 <div className="photo-corner" aria-hidden="true">MOMENTS WORTH KEEPING</div>
               </div>
               <div className="photo-info">
-                <div className="photo-caption"><span className="caption-dash" /><div><h2 title={fileName}>{fileName}</h2><p>{imported ? formatLabel : '有风经过的地方，时间慢了一点。'}</p></div></div>
-                <div className={`player-status ${state === 'playing' ? 'is-playing' : ''}`} role="status"><span />{hasVideo ? stateLabels[state] : '静态照片'}</div>
+                <div className="photo-caption"><span className="caption-dash" /><div><h2>海岸来信</h2><p>有风经过的地方，时间慢了一点。</p></div></div>
+                <div className={`player-status ${state === 'playing' ? 'is-playing' : ''}`} role="status"><span />{stateLabels[state]}</div>
               </div>
               <div className="progress-track" role="progressbar" aria-label="播放进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.duration ? Math.round(progress.currentTime / progress.duration * 100) : 0}>
                 <span style={{ width: `${progress.duration ? Math.min(100, progress.currentTime / progress.duration * 100) : 0}%` }} />
               </div>
             </div>
-            <div className="preview-meta"><span><span className="meta-dot" /> {formatLabel}</span><span>{timeLabel(progress.currentTime)} <span className="time-separator">/</span> {timeLabel(progress.duration)}</span></div>
+            <div className="preview-meta"><span><span className="meta-dot" /> 示例 · JPG + MP4</span><span>{timeLabel(progress.currentTime)} <span className="time-separator">/</span> {timeLabel(progress.duration)}</span></div>
             {playbackError && <p className="feedback-message" role="alert">{playbackError} 如原片采用 HEVC 编码，请提供 H.264 MP4 版本。</p>}
-            {imported?.format === 'still' && <p className="feedback-message feedback-neutral" role="status">已显示静态照片。iOS 实况照片需要同时选择导出的照片和 MOV 视频。</p>}
           </div>
 
           <aside className="settings-card" aria-labelledby="settings-title">
             <div className="settings-heading"><span className="tiny-label">MAKE IT YOURS</span><span className="settings-dot" /></div>
             <h2 id="settings-title">每一瞬，都有回响。</h2>
-            <p className="settings-description">先感受示例，再带入你自己的回忆。</p>
+            <p className="settings-description">调整播放方式，感受同一刻的不同节奏。</p>
 
             <div className="setting-block">
               <div className="setting-label"><span>交互方式</span><span className="setting-help">INTERACTION</span></div>
@@ -199,17 +139,14 @@ import '@local/live-photo-react/style.css';
               <label className="toggle-row"><span className="toggle-label"><Repeat2 size={17} /><span>循环播放<small>让这一刻，停留久一点</small></span></span><input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} /><span className="switch" aria-hidden="true" /></label>
             </div>
 
-            <div className="import-section">
-              <div className="setting-label"><span>试试你的照片</span><span className="local-label"><span /> 仅在本地处理</span></div>
-              <input ref={fileInput} type="file" multiple accept="image/*,video/*,.heic,.heif,.mov,.mp4,.jpg,.jpeg" className="visually-hidden" aria-label="选择实况照片文件" onChange={(event) => { void importFiles(Array.from(event.target.files ?? [])); }} />
-              <button type="button" className={`upload-zone ${dragging ? 'is-dragging' : ''}`} onClick={() => fileInput.current?.click()} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop} aria-busy={busy}>
-                <span className="upload-icon">{busy ? <LoaderCircle className="spin" size={21} /> : <Upload size={21} />}</span>
-                <strong>{busy ? '正在读取这段回忆…' : dragging ? '松开，带入你的回忆' : '选择文件，或拖放到这里'}</strong>
-                <span>照片 + MOV / MP4 · Android 动态照片</span>
-              </button>
-              <p className="import-note"><FileImage size={13} /><span>iOS 请同时选择原始照片和对应视频。<br />文件保留在你的设备上，无需上传。</span></p>
-              {importError && <p className="feedback-message import-error" role="alert">{importError}</p>}
-              <button type="button" className="reset-button" onClick={resetSample}><RotateCcw size={13} /> 恢复示例照片</button>
+            <div className="resource-section">
+              <div className="setting-label"><span>示例资源</span><span className="setting-help">STILL + MOTION</span></div>
+              <div className="resource-list">
+                <div className="resource-row"><span className="resource-icon"><FileImage size={17} /></span><span>coast.jpg<small>静态照片</small></span><span className="resource-format">JPG</span></div>
+                <div className="resource-row"><span className="resource-icon"><Film size={17} /></span><span>coast.mp4<small>动态片段</small></span><span className="resource-format">H.264</span></div>
+              </div>
+              <p className="resource-note">通过 photoSrc 和 videoSrc 传入资源。<br />按住照片或使用空格键，开始播放。</p>
+              <button type="button" className="reset-button" onClick={resetPlayback}><RotateCcw size={13} /> 重置播放</button>
             </div>
           </aside>
         </section>
@@ -221,7 +158,7 @@ import '@local/live-photo-react/style.css';
         </section>
 
         <section className="integration" id="integration" aria-labelledby="integration-title">
-          <div className="integration-copy"><p className="eyebrow"><span className="eyebrow-line" /> BUILT FOR DEVELOPERS</p><h2 id="integration-title">几行代码，<br />让静态多一点生动。</h2><p>传入一张照片和一段视频，即可拥有实况体验。<br />切换右侧设置，代码也会同步更新。</p><a href="https://developer.apple.com/documentation/livephotoskitjs" target="_blank" rel="noreferrer" className="source-link">参考 Apple LivePhotosKit 设计 <ArrowUpRight size={15} /></a><p className="compatibility-note">浏览器的实际解码能力取决于系统与编码。推荐使用 JPG + H.264 MP4；HEVC / MOV 可能需要先转码。iOS 相册选择器可能只提供静态图，建议导出「未修改的原片」。</p></div>
+          <div className="integration-copy"><p className="eyebrow"><span className="eyebrow-line" /> BUILT FOR DEVELOPERS</p><h2 id="integration-title">几行代码，<br />让静态多一点生动。</h2><p>传入一张照片和一段视频，即可拥有实况体验。<br />切换右侧设置，代码也会同步更新。</p><a href="https://developer.apple.com/documentation/livephotoskitjs" target="_blank" rel="noreferrer" className="source-link">参考 Apple LivePhotosKit 设计 <ArrowUpRight size={15} /></a><p className="compatibility-note">浏览器的实际解码能力取决于系统与编码。推荐使用 JPG + H.264 MP4；HEVC / MOV 可能需要先转码。</p></div>
           <div className="code-card"><div className="code-toolbar"><span><Code2 size={15} /> YourComponent.tsx</span><button type="button" onClick={() => { void copyCode(); }}>{copied ? <Check size={14} /> : <span className="copy-squares" aria-hidden="true" />}{copied ? '已复制' : '复制代码'}</button></div><pre><code>{code}</code></pre><div className="code-footer"><span className="code-dot" /> PROPS 随设置实时更新 <ArrowRight size={13} /></div></div>
         </section>
       </main>
