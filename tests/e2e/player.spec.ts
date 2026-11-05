@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('desktop URL video, controls, playback reset and custom badge', async ({ page }) => {
+test('desktop URL video, controls, custom badge and duration limit', async ({ page }) => {
   const errors: string[] = [];
   const decoderRequests: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -70,6 +70,26 @@ test('desktop URL video, controls, playback reset and custom badge', async ({ pa
   await page.getByLabel('标识样式').selectOption('default');
   await page.getByLabel('标识位置').selectOption('top-left');
   await expect(badge).toHaveText('实况');
+
+  const loop = page.getByRole('checkbox', { name: /循环播放/ });
+  await loop.check();
+  await expect(video()).toHaveJSProperty('loop', true);
+  await page.getByLabel('最大播放时长（秒）').selectOption('1');
+  await expect(video()).toHaveJSProperty('loop', false);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await player.hover();
+    await page.mouse.down();
+    await expect(player).toHaveAttribute('data-state', 'playing');
+    await expect.poll(() => video().evaluate((element: HTMLVideoElement) => element.currentTime)).toBeGreaterThan(0.1);
+    // Keep holding: the media limit itself must stop playback before release.
+    await expect(player).toHaveAttribute('data-state', 'idle');
+    await expect(player).toHaveAttribute('data-frame-visible', 'false');
+    await expect(video()).toHaveJSProperty('paused', true);
+    await expect(video()).toHaveJSProperty('currentTime', 0);
+    await page.mouse.up();
+  }
+  await page.getByLabel('最大播放时长（秒）').selectOption('0');
+  await loop.uncheck();
   await expect(page.locator('input[type="file"]')).toHaveCount(0);
   expect(decoderRequests).toEqual([]);
   expect(errors).toEqual([]);

@@ -24,6 +24,7 @@ export default function App() {
   const player = useRef<LivePhotoHandle>(null);
   const [muted, setMuted] = useState(true);
   const [loop, setLoop] = useState(false);
+  const [maxDuration, setMaxDuration] = useState(0);
   const [activation, setActivation] = useState<'press' | 'toggle'>('press');
   const [showBadge, setShowBadge] = useState(true);
   const [badgePreset, setBadgePreset] = useState<'default' | 'styled' | 'custom'>('default');
@@ -76,7 +77,8 @@ import '@local/live-photo-react/style.css';
   alt="海岸边，一段会动的回忆"
   activation="${activation}"
   muted={${muted}}
-  loop={${loop}}
+  loop={${loop}}${maxDuration > 0 ? `
+  maxDuration={${maxDuration}}` : ''}
 ${badgeCode}
 />`;
 
@@ -129,6 +131,7 @@ ${badgeCode}
                   activation={activation}
                   muted={muted}
                   loop={loop}
+                  maxDuration={maxDuration > 0 ? maxDuration : undefined}
                   aspectRatio="16 / 11"
                   objectFit="cover"
                   showBadge={showBadge}
@@ -172,9 +175,14 @@ ${badgeCode}
               <p className="interaction-note">{activation === 'press' ? '按住照片，画面即刻流动；松开，回到此刻。' : '轻点照片开始播放，再次点击回到照片。'}</p>
             </div>
 
+            <div className="duration-setting">
+              <label className="setting-label" htmlFor="max-duration">最大播放时长（秒）</label>
+              <select id="max-duration" aria-label="最大播放时长（秒）" value={maxDuration} onChange={(event) => { resetPlayback(); setMaxDuration(Number(event.target.value)); }}><option value="0">不限时</option><option value="1">1 秒</option><option value="1.5">1.5 秒</option><option value="3">3 秒</option><option value="5">5 秒</option></select>
+            </div>
+
             <div className="toggle-settings">
               <label className="toggle-row"><span className="toggle-label">{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}<span>保留现场声音<small>默认静音，轻触开启</small></span></span><input type="checkbox" checked={!muted} onChange={(event) => { player.current?.stop(); setMuted(!event.target.checked); }} /><span className="switch" aria-hidden="true" /></label>
-              <label className="toggle-row"><span className="toggle-label"><Repeat2 size={17} /><span>循环播放<small>让这一刻，停留久一点</small></span></span><input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} /><span className="switch" aria-hidden="true" /></label>
+              <label className={`toggle-row ${maxDuration > 0 ? 'is-disabled' : ''}`}><span className="toggle-label"><Repeat2 size={17} /><span>循环播放<small>{maxDuration > 0 ? '已设时长上限，循环暂不生效' : '让这一刻，停留久一点'}</small></span></span><input type="checkbox" checked={loop} disabled={maxDuration > 0} onChange={(event) => setLoop(event.target.checked)} /><span className="switch" aria-hidden="true" /></label>
             </div>
 
             <div className="badge-settings">
