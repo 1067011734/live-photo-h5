@@ -75,6 +75,28 @@ test('desktop URL video, controls, custom badge and duration limit', async ({ pa
   await loop.check();
   await expect(video()).toHaveJSProperty('loop', true);
   await page.getByLabel('最大播放时长（秒）').selectOption('1');
+  await expect(loop).toBeEnabled();
+  await expect(video()).toHaveJSProperty('loop', true);
+  await player.hover();
+  await page.mouse.down();
+  await expect(player).toHaveAttribute('data-state', 'playing');
+  let previousTime = 0;
+  let wraps = 0;
+  await expect.poll(async () => {
+    const currentTime = await video().evaluate((element: HTMLVideoElement) => element.currentTime);
+    if (currentTime + 0.25 < previousTime) wraps++;
+    previousTime = currentTime;
+    return wraps;
+  }, { timeout: 6500, intervals: [50, 75, 100] }).toBeGreaterThanOrEqual(3);
+  await expect(player).toHaveAttribute('data-state', 'playing');
+  await expect(player).toHaveAttribute('data-frame-visible', 'true');
+  await expect(video()).toHaveJSProperty('paused', false);
+  await page.mouse.up();
+  await expect(player).toHaveAttribute('data-state', 'idle');
+  await expect(player).toHaveAttribute('data-frame-visible', 'false');
+  await expect(video()).toHaveJSProperty('currentTime', 0);
+
+  await loop.uncheck();
   await expect(video()).toHaveJSProperty('loop', false);
   for (let attempt = 0; attempt < 2; attempt++) {
     await player.hover();
@@ -89,7 +111,6 @@ test('desktop URL video, controls, custom badge and duration limit', async ({ pa
     await page.mouse.up();
   }
   await page.getByLabel('最大播放时长（秒）').selectOption('0');
-  await loop.uncheck();
   await expect(page.locator('input[type="file"]')).toHaveCount(0);
   expect(decoderRequests).toEqual([]);
   expect(errors).toEqual([]);

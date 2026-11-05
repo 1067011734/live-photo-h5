@@ -182,7 +182,7 @@ ${badgeCode}
 
             <div className="toggle-settings">
               <label className="toggle-row"><span className="toggle-label">{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}<span>保留现场声音<small>默认静音，轻触开启</small></span></span><input type="checkbox" checked={!muted} onChange={(event) => { player.current?.stop(); setMuted(!event.target.checked); }} /><span className="switch" aria-hidden="true" /></label>
-              <label className={`toggle-row ${maxDuration > 0 ? 'is-disabled' : ''}`}><span className="toggle-label"><Repeat2 size={17} /><span>循环播放<small>{maxDuration > 0 ? '已设时长上限，循环暂不生效' : '让这一刻，停留久一点'}</small></span></span><input type="checkbox" checked={loop} disabled={maxDuration > 0} onChange={(event) => setLoop(event.target.checked)} /><span className="switch" aria-hidden="true" /></label>
+              <label className="toggle-row"><span className="toggle-label"><Repeat2 size={17} /><span>循环播放<small>{maxDuration > 0 ? `循环播放前${maxDuration}秒` : '让这一刻，停留久一点'}</small></span></span><input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} /><span className="switch" aria-hidden="true" /></label>
             </div>
 
             <div className="badge-settings">

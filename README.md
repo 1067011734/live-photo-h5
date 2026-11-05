@@ -135,7 +135,7 @@ iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先
 | `sources` | 无 | 有序 `{ src, type? }[]`；传入后优先于 `videoSrc`，使用原生 source 选择 |
 | `activation` | `press` | `press` 按住、`toggle` 点击切换、`hover` 鼠标移入 |
 | `muted`, `loop` | `true`, `false` | 静音、循环 |
-| `maxDuration` | 不限时 | 最大播放时长，单位秒；正有限数，可传小数；设置后优先于循环 |
+| `maxDuration` | 不限时 | 单次或每轮循环的最大播放时长，单位秒；正有限数，可传小数，可与 `loop` 同时使用 |
 | `preload` | `metadata` | `none` / `metadata` / `auto`，由浏览器决定加载量 |
 | `objectFit`, `aspectRatio` | `cover`, `4 / 3` | 图片与视频统一裁切及比例 |
 | `disabled` | `false` | 禁止交互并停止播放 |
@@ -153,7 +153,7 @@ iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先
 
 ## 设置最大播放时长
 
-通过 `maxDuration` 限制每次播放的视频时间，例如最多播放 3 秒：
+通过 `maxDuration` 限制单次或每轮循环的视频片段长度。例如默认不循环时，最多播放 3 秒后回到静态照片：
 
 ```tsx
 <LivePhoto
@@ -166,11 +166,26 @@ iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先
 
 `maxDuration` 单位为秒，支持 `1.5` 等小数。只有大于 0 的有限数字生效；省略、传入 `0`、负数、`NaN` 或 `Infinity` 均表示不限时，按视频原始时长播放。
 
-实际播放终点为视频原始时长与 `maxDuration` 中的较小值。到达终点时，组件停止播放、恢复静态照片并将视频位置重置为 0，下次播放从头开始。`pause()` 后再 `play()` 会从暂停位置继续，剩余可播放时间根据当前视频位置计算。按住模式松手、调用 `stop()` 等停止操作仍会重置播放位置。
+实际每轮播放终点为视频原始时长与 `maxDuration` 中的较小值。`loop={false}` 时，到达终点便停止播放、恢复静态照片并将视频位置重置为 0，下次播放从头开始。
 
-有效的 `maxDuration` 优先于 `loop`：即使传入 `loop={true}`，到达播放终点也会停止，不会重新循环；取消时长上限后恢复 `loop` 的行为。演示页修改时长会先停止当前播放，设置上限期间暂停循环开关的操作。
+同时开启 `loop`，即可反复播放前 3 秒：
 
-`onProgress` 中的 `duration` 是有效播放时长，`currentTime` 不会超过该时长；需要视频原始时长时，可读取 `ref.current?.video?.duration`。限制根据媒体播放进度生效，加载和缓冲等待时间不计入播放时长。该属性仅控制播放，不裁切素材、不转换编码，也不会减少视频文件本身的大小。
+```tsx
+<LivePhoto
+  photoSrc="/photo.jpg"
+  videoSrc="/motion.mp4"
+  alt="海岸边的一段回忆"
+  activation="toggle"
+  maxDuration={3}
+  loop
+/>
+```
+
+`loop={true}` 时，每轮到达终点会回到视频 0 秒继续播放，不恢复静态照片；视频不足 3 秒时循环播放完整视频。此时 `maxDuration` 限制的是每轮片段长度，不是累计播放时长，循环会持续到停止交互或调用 `stop()`。
+
+`pause()` 后再 `play()` 会从暂停位置继续，本轮剩余长度根据当前视频位置计算。按住模式松手、点击模式再次点击、调用 `stop()` 等停止操作仍会恢复静态照片并重置播放位置。演示页修改时长会先停止并重置当前播放，循环开关始终可用。
+
+`onProgress` 中的 `duration` 是每轮有效播放时长，`currentTime` 不会超过该时长，并在每轮循环时回到 0；需要视频原始时长时，可读取 `ref.current?.video?.duration`。限制根据媒体播放进度生效，加载和缓冲等待时间不计入播放时长。该属性仅控制播放，不裁切素材、不转换编码，也不会减少视频文件本身的大小。
 
 ## 自定义实况标识
 
