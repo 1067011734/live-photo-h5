@@ -131,15 +131,17 @@ iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先
 | 属性 | 默认值 | 说明 |
 | --- | --- | --- |
 | `photoSrc`, `alt` | 必传 | 静态照片 URL 与无障碍描述 |
-| `videoSrc` | 无 | 短视频 URL；省略时显示静态图 |
-| `sources` | 无 | 有序 `{ src, type? }[]`；传入后优先于 `videoSrc`，使用原生 source 选择 |
+| `videoSrc` | 无 | 短视频 URL；省略且未声明 `videoLoading` 时显示静态图 |
+| `videoLoading` | `false` | 视频 URL 接口尚未返回；没有可用视频源时保留封面并进入准备状态，展示由 `showBadge` / `showHint` 控制 |
+| `sources` | 无 | 有序 `{ src, type? }[]`；有可用源时优先于 `videoSrc`，使用原生 source 选择 |
 | `activation` | `press` | `press` 按住、`toggle` 点击切换、`hover` 鼠标移入 |
 | `muted`, `loop` | `true`, `false` | 静音、循环 |
 | `maxDuration` | 不限时 | 单次或每轮循环的最大播放时长，单位秒；正有限数，可传小数，可与 `loop` 同时使用 |
 | `preload` | `metadata` | `none` / `metadata` / `auto`，由浏览器决定加载量 |
 | `objectFit`, `aspectRatio` | `cover`, `4 / 3` | 图片与视频统一裁切及比例 |
 | `disabled` | `false` | 禁止交互并停止播放 |
-| `showBadge`, `showHint` | `true`, `true` | 实况标识与操作提示 |
+| `showBadge` | `true` | 实况标识的总开关；视频 URL 未就绪时可设为 `false` |
+| `showHint` | `true` | 底部提示的总开关，包括静态照片、链接准备中、加载与操作提示 |
 | `badge` | 无 | `LivePhotoBadgeOptions`；自定义标识文案、图标、位置和外观，默认左上角「实况 / LIVE」 |
 | `renderBadge` | 无 | `({ state, isPlaying }) => ReactNode`；完全自定义标识内容，保留定位与外层样式 |
 | `className`, `style`, `crossOrigin` | 无 | 自定义外观、跨域模式 |
@@ -150,6 +152,108 @@ iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先
 `ref: LivePhotoHandle` 提供 `play(): Promise<void>`、`pause()`、`stop()`、只读 `video`。`pause()` 保留当前视频帧，`stop()` 恢复静态照片并重置到 0。无障碍支持 Space 按住播放、Enter 切换及屏幕阅读器操作。
 
 为了保留移动浏览器的用户激活，按住模式在 `pointerdown` 同步调用 `play()`，不设置长按延时。松手、指针移出／取消、焦点离开、页面隐藏和离屏都会停止；保留纵向滚动和双指缩放，滚动取消会停止播放。
+
+## 照片与视频链接异步返回
+
+照片 URL 接口先返回时，可以先渲染照片，同时用 `videoLoading` 表示仍在等待视频 URL。两个请求独立启动，渲染只等待照片 URL；不要用 `Promise.all` 完成作为整个组件的展示条件，否则慢视频接口会一起延迟照片展示。
+
+### 视频没有或返回慢时，只显示图片
+
+图片 URL 就绪后，根据是否已经拿到非空视频 URL，同时控制 `showBadge` 和 `showHint`：
+
+```tsx
+const resolvedVideoSrc = videoUrl?.trim() || undefined;
+const hasVideo = Boolean(resolvedVideoSrc);
+
+<LivePhoto
+  photoSrc={photoUrl}
+  videoSrc={resolvedVideoSrc}
+  videoLoading={videoUrlLoading}
+  showBadge={hasVideo}
+  showHint={hasVideo}
+  alt="实况照片"
+/>
+```
+
+视频 URL 仍在请求、返回空地址或请求失败时，`hasVideo` 为 `false`，只展示图片，不显示实况标识及底部任何提示，包括「实况链接准备中…」和「静态照片」。视频 URL 返回后，两个开关自动变为 `true`，再显示实况标识和操作提示。
+
+应按视频 URL 是否存在判断，而不是只使用 `!videoUrlLoading`：请求结束后仍可能没有视频 URL。使用 `sources` 时，根据候选源中是否存在非空 URL 做同样判断。此处「就绪」指已获取视频 URL，视频本身仍按浏览器策略下载和缓冲。
+
+### 两个接口独立请求的完整示例
+
+```tsx
+import { useEffect, useState } from 'react';
+import { LivePhoto } from './lib/LivePhoto';
+
+type UrlLoader = (assetId: string, signal: AbortSignal) => Promise<string | undefined>;
+type UrlResult = { assetId: string; loading: boolean; url?: string; error?: boolean };
+
+function useAssetUrl(assetId: string, loadUrl: UrlLoader): UrlResult {
+  const [result, setResult] = useState<UrlResult>({ assetId, loading: true });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    setResult({ assetId, loading: true });
+
+    void (async () => {
+      try {
+        const url = (await loadUrl(assetId, controller.signal))?.trim() || undefined;
+        if (active && !controller.signal.aborted) {
+          setResult({ assetId, url, loading: false });
+        }
+      } catch {
+        if (active && !controller.signal.aborted) {
+          setResult({ assetId, loading: false, error: true });
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [assetId, loadUrl]);
+
+  // 切换素材后的首帧也不会展示上一个素材的 URL。
+  return result.assetId === assetId ? result : { assetId, loading: true };
+}
+
+export function AsyncLivePhoto({ assetId, getPhotoUrl, getVideoUrl }: {
+  assetId: string;
+  getPhotoUrl: UrlLoader;
+  getVideoUrl: UrlLoader;
+}) {
+  const photo = useAssetUrl(assetId, getPhotoUrl);
+  const video = useAssetUrl(assetId, getVideoUrl);
+  const hasVideo = Boolean(video.url?.trim());
+
+  if (photo.loading) return <p>封面链接准备中…</p>;
+  if (photo.error || !photo.url) return <p role="alert">照片链接获取失败。</p>;
+
+  return (
+    <LivePhoto
+      key={assetId}
+      photoSrc={photo.url}
+      videoSrc={video.url}
+      videoLoading={video.loading}
+      showBadge={hasVideo}
+      showHint={hasVideo}
+      alt="海岸边的一段回忆"
+    />
+  );
+}
+```
+
+`getPhotoUrl`、`getVideoUrl` 由业务方封装真实接口，并将 `signal` 传给内部的 `fetch`。使用模块级函数或 `useCallback` 保持加载函数引用稳定。上例在素材切换、组件卸载时取消请求，并用 `active` 和素材 ID 检查避免旧请求结果覆盖当前素材。
+
+保持同一张照片的 `photoSrc` 和组件实例稳定；需要 `key` 时使用业务 `assetId`，不要使用还在变化的 `videoSrc`。视频 URL 后续就绪时，组件复用已经展示的图片 DOM，保留封面，不会自动播放。等待期间的按压不会排队播放；URL 就绪后请让用户重新按住或点击，以符合移动浏览器的手势要求。
+
+`videoLoading` 默认是 `false`，只传照片仍按静态图处理。设置为 `true` 且没有可用 `videoSrc` / `sources` 时，状态为 `loading`、`aria-busy=true`，暂不可播放。组件的 `showBadge` / `showHint` 默认均为 `true`；保持默认值会显示「实况」标识及「实况链接准备中…」提示。上面的示例通过 `hasVideo` 同时关闭两个展示开关，等待或没有视频时只显示图片，准备状态仍正常更新。
+
+允许显示标识时，`renderBadge` 会收到 `state: 'loading'`；`showBadge={false}` 时不会调用该回调。已有可用视频 URL 时，即使 `videoLoading` 仍为 `true`，组件也会正常进入可交互状态。空字符串或仅空白字符不算可用视频源；请求结束后设为 `false` 且仍无视频源，则恢复静态图。
+
+该属性标记的是获取视频 URL 的接口请求阶段；URL 返回后的媒体下载和缓冲由原生视频元素处理。演示页「模拟视频链接延迟」仅用 3 秒定时器演示接口先后返回，生产环境应根据真实接口状态设置此属性。点击「重置播放」会取消演示定时器并恢复示例视频 URL。
 
 ## 设置最大播放时长
 
@@ -270,7 +374,7 @@ iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先
 
 如果仅替换图标，`badge.icon` 可直接接收 JSX 元素，例如 `badge={{ icon: <span>✦</span> }}`；需要图标随播放状态切换时，使用 `renderBadge`。
 
-仅隐藏图标可设置 `badge={{ icon: null }}`；隐藏整个标识可设置 `showBadge={false}`。`showBadge` 是总开关，优先于 `badge` 和 `renderBadge`，关闭时不会调用自定义渲染函数。仅传照片、没有视频候选源的静态图片也不会显示标识。
+仅隐藏图标可设置 `badge={{ icon: null }}`；隐藏整个标识可设置 `showBadge={false}`。`showBadge` 是总开关，优先于 `badge` 和 `renderBadge`，关闭时不会调用自定义渲染函数。仅传照片、没有视频候选源且 `videoLoading={false}` 的静态图片不会显示标识；等待视频链接期间，是否显示标识仍由 `showBadge` 控制。需要视频未就绪时同时隐藏标识和底部提示，请使用异步接入示例中的 `showBadge={hasVideo}` / `showHint={hasVideo}`。
 
 标识外层是 `aria-hidden` 的装饰层，不接收指针事件；自定义内容请使用文字或图形，交互按钮应放在组件外部。
 

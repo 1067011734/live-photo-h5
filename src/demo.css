@@ -108,6 +108,10 @@ button { color: inherit; }
 .resource-row small { display: block; font-size: 8px; color: #a5ae9b; margin-top: 3px; }
 .resource-format { margin-left: auto; font-size: 8px; letter-spacing: .3px; color: #9da793; }
 .resource-note { margin: 11px 0 14px; font-size: 8px; color: #a5ad9d; line-height: 1.9; }
+.delay-link-button { width: 100%; padding: 9px 10px; border: 1px solid #dddfee; border-radius: 5px; background: #f4f4fc; color: #777ab1; font-size: 9px; transition: background .15s; }
+.delay-link-button:hover:not(:disabled) { background: #eaeafa; }
+.delay-link-button:disabled { opacity: .6; cursor: wait; }
+.resource-link-status { margin: 8px 0 14px; color: #9aa48f; font-size: 8px; line-height: 1.8; }
 .reset-button { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0 auto; padding: 3px 0; background: transparent; border: 0; color: #949e89; font-size: 8px; }
 .reset-button:hover { color: var(--accent); }
 .feedback-message { font-size: 11px; padding: 10px 12px; color: #9b543a; background: #f8ede7; border: 1px solid #efddd2; border-radius: 5px; line-height: 1.8; overflow-wrap: anywhere; }
@@ -206,6 +210,7 @@ button { color: inherit; }
   .setting-help { font-size: 8px; }
   .resource-row { font-size: 11px; padding: 12px 0; }
   .resource-row small, .resource-note { font-size: 9px; }
+  .delay-link-button, .resource-link-status { font-size: 9px; }
   .reset-button { font-size: 9px; }
   .details-strip { margin-top: 29px; padding: 23px 0; gap: 0; }
   .details-strip > div { flex-direction: column; gap: 10px; padding-left: 15px; }

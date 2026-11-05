@@ -143,3 +143,51 @@ test('mobile layout, real touch hold and inline playback', async ({ browser }) =
   await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
   await context.close();
 });
+
+test('late video URL preserves the visible poster and requires a new gesture to play', async ({ page }) => {
+  const imageRequests: string[] = [];
+  const errors: string[] = [];
+  page.on('request', request => {
+    if (request.resourceType() === 'image' && new URL(request.url()).pathname === '/demo/coast.jpg') imageRequests.push(request.url());
+  });
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  const player = page.locator('.live-photo');
+  const image = player.locator('.live-photo__image');
+  const video = player.locator('video');
+  await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+  const initialImage = await image.elementHandle();
+  const initialImageRequests = imageRequests.length;
+  expect(initialImageRequests).toBeGreaterThan(0);
+
+  await page.getByRole('button', { name: '模拟视频链接延迟' }).click();
+  await expect(player).toHaveAttribute('role', 'img');
+  await expect(player).toHaveAttribute('data-state', 'loading');
+  await expect(player).toHaveAttribute('aria-busy', 'true');
+  await expect(video).toHaveCount(0);
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+  expect(await image.evaluate((element, original) => element === original, initialImage)).toBe(true);
+  await player.hover();
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(player).toHaveAttribute('data-state', 'loading');
+  await expect(video).toHaveCount(0);
+
+  await expect(video).toHaveCount(1, { timeout: 6000 });
+  await expect(player).toHaveAttribute('data-state', 'idle');
+  await expect(player).toHaveAttribute('aria-busy', 'false');
+  await expect(player).toHaveAttribute('data-frame-visible', 'false');
+  await expect(video).toHaveJSProperty('paused', true);
+  expect(await image.evaluate((element, original) => element === original, initialImage)).toBe(true);
+  expect(imageRequests).toHaveLength(initialImageRequests);
+
+  await player.hover();
+  await page.mouse.down();
+  await expect(player).toHaveAttribute('data-state', 'playing');
+  await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeGreaterThan(0.1);
+  await page.mouse.up();
+  await expect(player).toHaveAttribute('data-state', 'idle');
+  expect(imageRequests).toHaveLength(initialImageRequests);
+  expect(errors).toEqual([]);
+});

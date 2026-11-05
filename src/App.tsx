@@ -32,16 +32,37 @@ export default function App() {
   const [state, setState] = useState<LivePhotoState>('idle');
   const [progress, setProgress] = useState({ currentTime: 0, duration: 0 });
   const [playbackError, setPlaybackError] = useState('');
+  const [videoLinkStatus, setVideoLinkStatus] = useState<'ready' | 'pending' | 'restored'>('ready');
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoLinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoLinkPending = videoLinkStatus === 'pending';
   useEffect(() => () => {
     if (copyTimer.current) clearTimeout(copyTimer.current);
+    if (videoLinkTimer.current) clearTimeout(videoLinkTimer.current);
   }, []);
 
   function resetPlayback() {
+    if (videoLinkTimer.current) {
+      clearTimeout(videoLinkTimer.current);
+      videoLinkTimer.current = null;
+    }
+    setVideoLinkStatus('ready');
     player.current?.stop();
     setPlaybackError('');
     setProgress((previous) => ({ ...previous, currentTime: 0 }));
+  }
+
+  function simulateDelayedVideoLink() {
+    if (videoLinkTimer.current) clearTimeout(videoLinkTimer.current);
+    player.current?.stop();
+    setPlaybackError('');
+    setProgress({ currentTime: 0, duration: 0 });
+    setVideoLinkStatus('pending');
+    videoLinkTimer.current = setTimeout(() => {
+      videoLinkTimer.current = null;
+      setVideoLinkStatus('restored');
+    }, 3000);
   }
 
   const badge: LivePhotoBadgeOptions = {
@@ -73,7 +94,7 @@ import '@local/live-photo-react/style.css';
 
 <LivePhoto
   photoSrc="/photo.jpg"
-  videoSrc="/motion.mp4"
+  videoSrc=${videoLinkPending ? '{undefined}' : '"/motion.mp4"'}${videoLinkPending ? '\n  videoLoading' : ''}
   alt="海岸边，一段会动的回忆"
   activation="${activation}"
   muted={${muted}}
@@ -126,7 +147,8 @@ ${badgeCode}
                 <LivePhoto
                   ref={player}
                   photoSrc={sample.photoSrc}
-                  videoSrc={sample.videoSrc}
+                  videoSrc={videoLinkPending ? undefined : sample.videoSrc}
+                  videoLoading={videoLinkPending}
                   alt="海岸边，一段会动的回忆"
                   activation={activation}
                   muted={muted}
@@ -151,7 +173,7 @@ ${badgeCode}
               </div>
               <div className="photo-info">
                 <div className="photo-caption"><span className="caption-dash" /><div><h2>海岸来信</h2><p>有风经过的地方，时间慢了一点。</p></div></div>
-                <div className={`player-status ${state === 'playing' ? 'is-playing' : ''}`} role="status"><span />{stateLabels[state]}</div>
+                <div className={`player-status ${state === 'playing' ? 'is-playing' : ''}`} role="status"><span />{videoLinkPending ? '链接准备中' : stateLabels[state]}</div>
               </div>
               <div className="progress-track" role="progressbar" aria-label="播放进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.duration ? Math.round(progress.currentTime / progress.duration * 100) : 0}>
                 <span style={{ width: `${progress.duration ? Math.min(100, progress.currentTime / progress.duration * 100) : 0}%` }} />
@@ -200,6 +222,8 @@ ${badgeCode}
                 <div className="resource-row"><span className="resource-icon"><Film size={17} /></span><span>coast.mp4<small>动态片段</small></span><span className="resource-format">H.264</span></div>
               </div>
               <p className="resource-note">通过 photoSrc 和 videoSrc 传入资源。<br />按住照片或使用空格键，开始播放。</p>
+              <button type="button" className="delay-link-button" disabled={videoLinkPending} onClick={simulateDelayedVideoLink}>模拟视频链接延迟</button>
+              <p className="resource-link-status" role="status">{videoLinkPending ? '照片已展示，模拟接口将在3秒后返回视频链接。' : videoLinkStatus === 'restored' ? '视频链接已就绪，请重新按住或点击照片播放。' : '模拟接口比照片晚3秒返回视频链接。'}</p>
               <button type="button" className="reset-button" onClick={resetPlayback}><RotateCcw size={13} /> 重置播放</button>
             </div>
           </aside>
