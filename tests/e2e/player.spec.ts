@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('desktop URL video, hold release, toggle, keyboard and playback reset', async ({ page }) => {
+test('desktop URL video, controls, playback reset and custom badge', async ({ page }) => {
   const errors: string[] = [];
   const decoderRequests: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -39,6 +39,37 @@ test('desktop URL video, hold release, toggle, keyboard and playback reset', asy
   await expect(player).toHaveAttribute('data-frame-visible', 'false');
   await expect(video()).toHaveJSProperty('paused', true);
   await expect(video()).toHaveJSProperty('currentTime', 0);
+
+  await page.getByLabel('标识样式').selectOption('styled');
+  await page.getByLabel('标识位置').selectOption('bottom-right');
+  const badge = player.locator('.live-photo__badge');
+  await expect(badge).toHaveText('动态照片');
+  await player.scrollIntoViewIfNeeded();
+  const photoBounds = (await player.boundingBox())!;
+  const badgeBounds = (await badge.boundingBox())!;
+  // Verify the selected corner is actually laid out by CSS, rather than
+  // merely accepting a position attribute without moving the badge.
+  expect(badgeBounds.x).toBeGreaterThan(photoBounds.x + photoBounds.width / 2);
+  expect(badgeBounds.y).toBeGreaterThan(photoBounds.y + photoBounds.height / 2);
+  expect(badgeBounds.x + badgeBounds.width).toBeLessThan(photoBounds.x + photoBounds.width);
+  expect(badgeBounds.y + badgeBounds.height).toBeLessThan(photoBounds.y + photoBounds.height);
+
+  await page.getByRole('button', { name: '长按播放 HOLD' }).click();
+  await player.hover();
+  await page.mouse.down();
+  await expect(player).toHaveAttribute('data-state', 'playing');
+  await expect(badge).toHaveText('播放中');
+  await page.mouse.up();
+  await expect(badge).toHaveText('动态照片');
+  await page.getByLabel('显示实况标识').uncheck();
+  await expect(badge).toHaveCount(0);
+  await page.getByLabel('显示实况标识').check();
+  await expect(badge).toHaveText('动态照片');
+  await page.getByLabel('标识样式').selectOption('custom');
+  await expect(badge).toHaveText('一瞬 · 有声有色');
+  await page.getByLabel('标识样式').selectOption('default');
+  await page.getByLabel('标识位置').selectOption('top-left');
+  await expect(badge).toHaveText('实况');
   await expect(page.locator('input[type="file"]')).toHaveCount(0);
   expect(decoderRequests).toEqual([]);
   expect(errors).toEqual([]);

@@ -139,6 +139,8 @@ iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先
 | `objectFit`, `aspectRatio` | `cover`, `4 / 3` | 图片与视频统一裁切及比例 |
 | `disabled` | `false` | 禁止交互并停止播放 |
 | `showBadge`, `showHint` | `true`, `true` | 实况标识与操作提示 |
+| `badge` | 无 | `LivePhotoBadgeOptions`；自定义标识文案、图标、位置和外观，默认左上角「实况 / LIVE」 |
+| `renderBadge` | 无 | `({ state, isPlaying }) => ReactNode`；完全自定义标识内容，保留定位与外层样式 |
 | `className`, `style`, `crossOrigin` | 无 | 自定义外观、跨域模式 |
 | `onStateChange` | 无 | `idle` / `loading` / `playing` / `paused` / `error` |
 | `onProgress` | 无 | `{ currentTime, duration }`，单位秒 |
@@ -147,6 +149,93 @@ iOS Live Photo、Android Motion Photo 等原片应由业务方或服务端预先
 `ref: LivePhotoHandle` 提供 `play(): Promise<void>`、`pause()`、`stop()`、只读 `video`。`pause()` 保留当前视频帧，`stop()` 恢复静态照片并重置到 0。无障碍支持 Space 按住播放、Enter 切换及屏幕阅读器操作。
 
 为了保留移动浏览器的用户激活，按住模式在 `pointerdown` 同步调用 `play()`，不设置长按延时。松手、指针移出／取消、焦点离开、页面隐藏和离屏都会停止；保留纵向滚动和双指缩放，滚动取消会停止播放。
+
+## 自定义实况标识
+
+通过 `badge` 修改原有「实况 / LIVE」标识，无需覆盖组件内部选择器：
+
+```tsx
+<LivePhoto
+  photoSrc="/photo.jpg"
+  videoSrc="/motion.mp4"
+  alt="海岸边的一段回忆"
+  badge={{
+    text: '动态照片',
+    playingText: '播放中',
+    position: 'top-right',
+    icon: <span>✦</span>,
+    className: 'brand-live-badge',
+    style: {
+      background: '#f7f4e4',
+      color: '#5f6247',
+      borderRadius: 6,
+    },
+    playingStyle: { background: '#5b5edb', color: '#fff' },
+  }}
+/>
+```
+
+| `badge` 配置 | 默认值 | 说明 |
+| --- | --- | --- |
+| `text` | `实况` | 非播放状态的文案，类型为 `string` |
+| `playingText` | `LIVE` | `state === 'playing'` 时的文案，类型为 `string` |
+| `position` | `top-left` | `top-left` / `top-right` / `bottom-left` / `bottom-right`，默认距对应边缘 18px |
+| `icon` | 内置实况图标 | 任意 `ReactNode`；`null` 或 `false` 隐藏图标，省略或 `undefined` 使用默认图标 |
+| `className` | 无 | 添加到标识外层容器的 CSS 类名 |
+| `style` | 无 | 标识外层容器的内联样式，覆盖内置常规样式 |
+| `playingStyle` | 无 | 仅播放时合并到 `style` 上；同名属性优先使用 `playingStyle` |
+
+`playingStyle` 未指定的属性继续使用 `style`，退出播放状态时恢复 `style`。`className` 遵循正常 CSS 层叠规则。以上类型通过包入口导出：`LivePhotoBadgeOptions`、`LivePhotoBadgePosition`、`LivePhotoBadgeRenderContext`。
+
+需要替换整个标识内容时，使用 `renderBadge`。回调可读取全部播放状态以及 `isPlaying`：
+
+```tsx
+<LivePhoto
+  photoSrc="/photo.jpg"
+  videoSrc="/motion.mp4"
+  alt="海岸边的一段回忆"
+  badge={{
+    position: 'bottom-right',
+    style: { background: '#fff', color: '#5b5edb' },
+    playingStyle: { background: '#5b5edb', color: '#fff' },
+  }}
+  renderBadge={({ state, isPlaying }) => (
+    <span>
+      {state === 'loading' ? '准备播放…' : isPlaying ? '● 记录正在发生' : '一瞬 · 有声有色'}
+    </span>
+  )}
+/>
+```
+
+`renderBadge` 替换外层容器的内容，优先于 `badge.text`、`playingText` 和 `icon`；`position`、`className`、`style`、`playingStyle` 仍应用于外层容器。返回 `null`、`undefined` 或 `false` 时，该次渲染不显示整个标识。
+
+### 为「实况 / LIVE」分别渲染元素
+
+`text` / `playingText` 接收字符串；需要传入 JSX 元素或自定义 React 组件时，通过 `renderBadge` 返回。利用 `isPlaying` 可以为两个场景分别提供元素、图标、样式和布局：
+
+```tsx
+<LivePhoto
+  photoSrc="/photo.jpg"
+  videoSrc="/motion.mp4"
+  alt="实况照片"
+  badge={{ position: 'top-right' }}
+  renderBadge={({ isPlaying }) =>
+    isPlaying ? (
+      <span className="badge-live">🔴 播放中</span>
+    ) : (
+      <span className="badge-still">◎ 实况照片</span>
+    )
+  }
+/>
+```
+
+也可以将上述两个 `<span>` 分别替换为业务方的 `<PlayingBadge />` 和 `<StillBadge />` 组件。`isPlaying` 仅在 `state === 'playing'` 时为 `true`；如需区分加载、暂停、错误状态，可以同时读取回调中的 `state`。
+
+如果仅替换图标，`badge.icon` 可直接接收 JSX 元素，例如 `badge={{ icon: <span>✦</span> }}`；需要图标随播放状态切换时，使用 `renderBadge`。
+
+仅隐藏图标可设置 `badge={{ icon: null }}`；隐藏整个标识可设置 `showBadge={false}`。`showBadge` 是总开关，优先于 `badge` 和 `renderBadge`，关闭时不会调用自定义渲染函数。仅传照片、没有视频候选源的静态图片也不会显示标识。
+
+标识外层是 `aria-hidden` 的装饰层，不接收指针事件；自定义内容请使用文字或图形，交互按钮应放在组件外部。
 
 ## 浏览器与原片边界
 

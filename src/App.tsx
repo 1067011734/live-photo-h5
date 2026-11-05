@@ -3,7 +3,10 @@ import {
   Aperture, ArrowDown, ArrowRight, ArrowUpRight, Check, Code2, FileImage, Film,
   Monitor, Repeat2, RotateCcw, Smartphone, Volume2, VolumeX,
 } from 'lucide-react';
-import { LivePhoto, type LivePhotoHandle, type LivePhotoState } from './lib/LivePhoto';
+import {
+  LivePhoto, type LivePhotoBadgeOptions, type LivePhotoBadgePosition,
+  type LivePhotoHandle, type LivePhotoState,
+} from './lib/LivePhoto';
 import './lib/live-photo.css';
 import './demo.css';
 
@@ -22,6 +25,9 @@ export default function App() {
   const [muted, setMuted] = useState(true);
   const [loop, setLoop] = useState(false);
   const [activation, setActivation] = useState<'press' | 'toggle'>('press');
+  const [showBadge, setShowBadge] = useState(true);
+  const [badgePreset, setBadgePreset] = useState<'default' | 'styled' | 'custom'>('default');
+  const [badgePosition, setBadgePosition] = useState<LivePhotoBadgePosition>('top-left');
   const [state, setState] = useState<LivePhotoState>('idle');
   const [progress, setProgress] = useState({ currentTime: 0, duration: 0 });
   const [playbackError, setPlaybackError] = useState('');
@@ -37,6 +43,30 @@ export default function App() {
     setProgress((previous) => ({ ...previous, currentTime: 0 }));
   }
 
+  const badge: LivePhotoBadgeOptions = {
+    position: badgePosition,
+    ...(badgePreset === 'default' ? {} : {
+      text: '动态照片',
+      playingText: '播放中',
+      style: { background: '#f7f4e4', color: '#5f6247', borderRadius: 6 },
+      playingStyle: { background: '#5b5edb', color: '#fff' },
+    }),
+  };
+  const badgeCode = `  showBadge={${showBadge}}
+  badge={{
+    position: '${badgePosition}',${badgePreset === 'default' ? '' : `
+    text: '动态照片',
+    playingText: '播放中',
+    style: { background: '#f7f4e4', color: '#5f6247', borderRadius: 6 },
+    playingStyle: { background: '#5b5edb', color: '#fff' },`}
+  }}${badgePreset !== 'custom' ? '' : `
+  renderBadge={({ isPlaying }) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+      {isPlaying ? '记录正在发生' : '一瞬 · 有声有色'}
+    </span>
+  )}`}`;
+
   const code = `import { LivePhoto } from '@local/live-photo-react';
 import '@local/live-photo-react/style.css';
 
@@ -47,6 +77,7 @@ import '@local/live-photo-react/style.css';
   activation="${activation}"
   muted={${muted}}
   loop={${loop}}
+${badgeCode}
 />`;
 
   async function copyCode() {
@@ -100,7 +131,14 @@ import '@local/live-photo-react/style.css';
                   loop={loop}
                   aspectRatio="16 / 11"
                   objectFit="cover"
-                  showBadge
+                  showBadge={showBadge}
+                  badge={badge}
+                  renderBadge={badgePreset === 'custom' ? ({ isPlaying }) => (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+                      {isPlaying ? '记录正在发生' : '一瞬 · 有声有色'}
+                    </span>
+                  ) : undefined}
                   showHint
                   onStateChange={(next) => { setState(next); if (next === 'playing') setPlaybackError(''); }}
                   onProgress={setProgress}
@@ -137,6 +175,14 @@ import '@local/live-photo-react/style.css';
             <div className="toggle-settings">
               <label className="toggle-row"><span className="toggle-label">{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}<span>保留现场声音<small>默认静音，轻触开启</small></span></span><input type="checkbox" checked={!muted} onChange={(event) => { player.current?.stop(); setMuted(!event.target.checked); }} /><span className="switch" aria-hidden="true" /></label>
               <label className="toggle-row"><span className="toggle-label"><Repeat2 size={17} /><span>循环播放<small>让这一刻，停留久一点</small></span></span><input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} /><span className="switch" aria-hidden="true" /></label>
+            </div>
+
+            <div className="badge-settings">
+              <label className="toggle-row badge-visibility"><span className="setting-label">显示实况标识</span><input type="checkbox" aria-label="显示实况标识" checked={showBadge} onChange={(event) => setShowBadge(event.target.checked)} /><span className="switch" aria-hidden="true" /></label>
+              <div className="badge-control-grid">
+                <label><span>标识样式</span><select aria-label="标识样式" value={badgePreset} onChange={(event) => setBadgePreset(event.target.value as typeof badgePreset)}><option value="default">默认标识</option><option value="styled">自定义文案与样式</option><option value="custom">完全自定义内容</option></select></label>
+                <label><span>标识位置</span><select aria-label="标识位置" value={badgePosition} onChange={(event) => setBadgePosition(event.target.value as LivePhotoBadgePosition)}><option value="top-left">左上</option><option value="top-right">右上</option><option value="bottom-left">左下</option><option value="bottom-right">右下</option></select></label>
+              </div>
             </div>
 
             <div className="resource-section">

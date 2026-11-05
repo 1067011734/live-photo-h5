@@ -16,11 +16,11 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 28px; }
 body { margin: 0; min-width: 320px; }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
-button:focus-visible, a:focus-visible, input:focus-visible + .switch { outline: 3px solid #a6a8f5; outline-offset: 4px; }
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible + .switch { outline: 3px solid #a6a8f5; outline-offset: 4px; }
 button { color: inherit; }
 .demo-app { width: min(1184px, calc(100% - 112px)); margin: 0 auto; }
 .site-header { height: 95px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
@@ -94,6 +94,10 @@ button { color: inherit; }
 .switch::after { display: block; content: ''; width: 11px; height: 11px; border-radius: 50%; background: white; box-shadow: 0 1px 3px #25361915; transition: transform .2s; }
 .toggle-row input:checked + .switch { background: var(--accent); }
 .toggle-row input:checked + .switch::after { transform: translateX(13px); }
+.badge-settings { padding: 18px 0; border-bottom: 1px solid #e9ece4; }
+.badge-control-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 10px; margin-top: 13px; }
+.badge-control-grid label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 8px; color: #9ca394; }
+.badge-control-grid select { width: 100%; min-height: 31px; padding: 5px 7px; border: 1px solid #e0e5d8; border-radius: 4px; background: #f9faf7; color: #707b65; font-size: 9px; cursor: pointer; }
 .resource-section { padding-top: 20px; }
 .resource-list { margin-top: 12px; padding: 0 12px; border: 1px solid #e5e9de; border-radius: 6px; background: #f8f9f5; }
 .resource-row { display: flex; align-items: center; gap: 9px; padding: 11px 0; font-size: 10px; color: #737f69; }
@@ -193,6 +197,8 @@ button { color: inherit; }
   .toggle-settings { gap: 18px; padding: 17px 0; }
   .toggle-label { font-size: 11px; }
   .toggle-label small { font-size: 9px; }
+  .badge-control-grid label { font-size: 9px; }
+  .badge-control-grid select { font-size: 10px; min-height: 35px; }
   .setting-label { font-size: 11px; }
   .setting-help { font-size: 8px; }
   .resource-row { font-size: 11px; padding: 12px 0; }
